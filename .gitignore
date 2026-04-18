@@ -1,3 +1,6 @@
+# MCP bundle files (Claude Desktop integration)
+*.mcpb
+
 # Logs
 logs
 *.log

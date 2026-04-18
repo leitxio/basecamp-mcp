@@ -1,0 +1,37 @@
+{
+  "manifest_version": "0.3",
+  "name": "basecamp-mcp",
+  "display_name": "Basecamp",
+  "version": "0.1.0",
+  "description": "Basecamp tools for Claude — browse projects, todos, documents, and messages via the Basecamp CLI.",
+  "author": {
+    "name": "matthias.leitner",
+    "email": "matthiasleitner@gmx.at"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js", "--stdio"],
+      "env": {
+        "BASECAMP_ACCOUNT_ID": "${user_config.basecamp_account_id}",
+        "BASECAMP_PATH": "${user_config.basecamp_path}"
+      }
+    }
+  },
+  "user_config": {
+    "basecamp_account_id": {
+      "type": "string",
+      "title": "Basecamp Account ID",
+      "description": "Your Basecamp account ID. Find it with: basecamp accounts list --json",
+      "required": true
+    },
+    "basecamp_path": {
+      "type": "string",
+      "title": "Basecamp CLI path (optional)",
+      "description": "Full path to the basecamp binary. Auto-detected if blank. Run 'which basecamp' in Terminal to find it.",
+      "required": false
+    }
+  }
+}
