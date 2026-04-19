@@ -3,8 +3,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
-import { createServer as createHttpServer, IncomingMessage } from "http";
+import { createServer as createHttpServer } from "http";
+import { marked } from "marked";
 import { execBasecamp, flag, initBasecampPath } from "./cli.js";
+
+// Basecamp's docs API expects HTML, not Markdown. Convert before sending.
+function mdToHtml(md: string): string {
+  return marked.parse(md, { async: false }) as string;
+}
 
 config();
 await initBasecampPath();
@@ -15,15 +21,6 @@ function ok(data: unknown) {
   return {
     content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
   };
-}
-
-function readBody(req: IncomingMessage): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on("data", (c) => chunks.push(c));
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
-  });
 }
 
 function createMcpServer() {
@@ -129,17 +126,21 @@ function createMcpServer() {
 
     server.tool(
       "create_document",
-      "Create a new document in a project's Docs & Files. Markdown supported in body.",
+      "Create a new document in a project's Docs & Files. Full Markdown supported (headings, bold, italic, lists, links, tables, code blocks) — converted to HTML server-side.",
       {
         project: z.string().describe("Project ID or name"),
         title: z.string().describe("Document title"),
-        body: z.string().describe("Document body (Markdown supported)"),
+        body: z
+          .string()
+          .describe(
+            "Document body in Markdown. Converted to HTML before sending to Basecamp.",
+          ),
       },
       async ({ project, title, body }) =>
         ok(
           (
             await execBasecamp(
-              ["files", "doc", "create", title, body],
+              ["files", "doc", "create", title, mdToHtml(body)],
               flag("--in", project),
             )
           ).data,
@@ -150,7 +151,7 @@ function createMcpServer() {
 
     server.tool(
       "update_document",
-      "Update the title and/or content of an existing document.",
+      "Update the title and/or content of an existing document. Omitted fields are preserved (the current value is fetched and re-sent). Body accepts Markdown — converted to HTML server-side.",
       {
         id: z.string().describe("Document ID"),
         project: z.string().describe("Project ID or name"),
@@ -161,12 +162,32 @@ function createMcpServer() {
         body: z
           .string()
           .optional()
-          .describe("New body content (omit to leave unchanged)"),
+          .describe(
+            "New body content in Markdown (omit to leave unchanged). Converted to HTML before sending.",
+          ),
       },
       async ({ id, project, title, body }) => {
-        const f = [...flag("--in", project)];
-        if (title) f.push(...flag("--title", title));
-        if (body) f.push(...flag("--content", body));
+        let finalTitle = title;
+        let finalHtml = body !== undefined ? mdToHtml(body) : undefined;
+
+        // Basecamp CLI wipes any flag not passed — fetch current doc to preserve omitted fields
+        if (finalTitle === undefined || finalHtml === undefined) {
+          const current = (
+            await execBasecamp(["files", "show", id], flag("--in", project))
+          ).data as Record<string, unknown>;
+          if (finalTitle === undefined)
+            finalTitle = String(current["title"] ?? "");
+          if (finalHtml === undefined)
+            finalHtml = String(
+              current["content"] ?? current["body"] ?? "",
+            );
+        }
+
+        const f = [
+          ...flag("--in", project),
+          ...flag("--title", finalTitle),
+          ...flag("--content", finalHtml),
+        ];
         return ok((await execBasecamp(["files", "update", id], f)).data);
       },
     );
@@ -250,8 +271,7 @@ if (process.argv.includes("--stdio")) {
       });
       const server = createMcpServer();
       await server.connect(transport);
-      const body = await readBody(req);
-      await transport.handleRequest(req, res, body);
+      await transport.handleRequest(req, res);
     } else {
       res.writeHead(404).end("Not Found");
     }

@@ -137,11 +137,15 @@ export async function execBasecamp(
     "--json",
   ];
   const command = parts.join(" ");
+  const t0 = Date.now();
+  console.error(`[basecamp-mcp] exec: ${args[0]}`);
 
   const { stdout, stderr } = await execAsync(command, {
     timeout: 30_000,
     maxBuffer: 10 * 1024 * 1024,
   });
+
+  console.error(`[basecamp-mcp] exec done: ${args[0]} (${Date.now() - t0}ms)`);
 
   let envelope: BasecampEnvelope;
   try {

@@ -113,10 +113,12 @@ Write tools are not registered when `BASECAMP_READONLY=true`.
 # List registered tools
 curl -s -X POST http://localhost:3333/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 
 # Call list_projects
 curl -s -X POST http://localhost:3333/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_projects","arguments":{}}}'
 ```
